@@ -1,0 +1,482 @@
+---
+title: "CVDSBA"
+author: "Weigang Ge"
+date: "2020/3/28"
+output: html_document
+---
+
+generate matrix
+```{r}
+rm(list = ls())
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+library(magrittr)
+source("D:/datamining_library_ge20200306.R")
+df <- read_xlsx("../COVID19_123456.xlsx",sheet = 2)
+df1 <- df[,grepl("Ratio:",names(df))] %>% as.data.frame()
+row.names(df1) <- df$Accession
+nm1 <- ge.split(names(df1),"\\)",1)
+nm2 <- ge.split(nm1,"\\(",2)
+names(df1) <- gsub(", ","_",nm2)
+
+ge.na.ratio(df1)
+ge.plot.density(df1)
+max(df1,na.rm = T)
+min(df1,na.rm = T)
+
+df2 <- df1[apply(df1,1, function(x){sum(!is.na(x))})>0,]
+ge.na.ratio(df2)
+ge.plot.density(df2)
+max(df2,na.rm = T)
+min(df2,na.rm = T)
+
+dele <- which(names(df2) %in% c("F2_128N","F1_129C","F2_133N","F5_131C","F4_133N"))
+df2 <- df2[,-dele]
+
+info <- read_xlsx("../sampleinfo2.xlsx")
+info$TMT <- gsub("^b","F",info$TMT)
+
+# tmp <- df2[,-na.omit(match(info$TMT[which(info$Type=="NA")],names(df2)))]
+# ge.writetable(tmp,"proteomic_matrix_delect5andNA15_ratio20200329.txt")
+
+# qqnorm(as.matrix(df2[, 46]))
+# qqline(as.matrix(df2[, 46]))
+
+
+```
+
+bool PCA
+```{r}
+df.pool <- df[,grepl("Grouped",names(df)) & grepl("134N",names(df))]%>% as.data.frame()
+row.names(df.pool) <- df$Accession
+df.pool2 <- df.pool[apply(df.pool,1, function(x){sum(!is.na(x))})>1,]
+nm1 <- ge.split(names(df.pool2),"\\: ",2)
+nm2 <- gsub(", ","_",nm1)
+names(df.pool2) <- nm2
+
+ge.writetable(df.pool2,"proteomic_batch1_6pool.txt")
+ge.plot.pca(df.pool2,paste0("b",1:6),"pool")
+```
+
+
+VOLCANO ZX - PT (in other words: severe - nonsevere)
+```{r}
+batch <- ge.split(names(df2),"_",1) %>% unique()
+label <- info$Type[match(names(df2),info$TMT)]
+library(RColorBrewer)
+zx_type <- which(label=="ZX")
+pt_type <- which(label=="PT")
+
+#foldchange
+df8 <- df2
+df8[is.na(df8)]<-0
+df8$fd <- apply(df8,1, function(x) log2((mean(x[zx_type],na.rm = T)/mean(x[pt_type],na.rm = T))))
+x<-c(0.0,0.0)
+df9 <- df2
+df9[is.na(df9)]<-0
+
+#pvalue and adjust
+for(i in 1:nrow(df9)){
+    x[i] <- t.test(df9[i,zx_type],df9[i,pt_type], paired = F, var.equal = F)$p.value
+}
+df8$P_value<-x
+df8$P_value_adjust<-p.adjust(df8$P_value, method="BH")
+
+pdf("ZX_PT_labelpoint.pdf")
+df.point <- data.frame(mean=apply(df2[,c(zx_type,pt_type)],1,mean),fc=df8$fd)
+up <- subset(df.point, df.point$mean >1.5 & df.point$fc > 0.25)
+down <- subset(df.point, df.point$mean <1 & df.point$fc < -0.25)
+write.csv(rbind(up,down),file = "ZX_PT_point.csv")
+plot(df.point$mean,df.point$fc)
+abline(h=c(-0.25,0.25),lty=2,lwd=1)
+  text(up$mean, up$fc,row.names(up),cex=0.5)
+  text(down$mean, down$fc,row.names(down),cex=0.5)
+dev.off()
+pdf("ZX_PT_point.pdf")
+df.point <- data.frame(mean=apply(df2[,c(zx_type,pt_type)],1,mean),fc=df8$fd)
+plot(df.point$mean,df.point$fc)
+abline(h=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+  
+
+#volcano plot 
+pdf("ZX_PT_volcano.pdf")
+plot(df8$fd, -log10(df8$P_value_adjust), col="#00000033", pch=19,
+      xlab=paste("log2 (fold change)"),
+      ylab="-log10 (P_value_adjust)",xlim=c(-4,4),
+      main="ZX & PT")
+
+up <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd > 0.25)
+down <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd < -0.25)
+write.csv(up,file = "ZX_PT_up_volcano.csv")
+write.csv(down,file = "ZX_PT_dw_volcano.csv")
+points(up$fd, -log10(up$P_value_adjust), col=1, bg = brewer.pal(9, "YlOrRd")[6], pch=21, cex=1.5)
+points(down$fd, -log10(down$P_value_adjust), col = 1, bg = brewer.pal(11,"RdBu")[9], pch = 21,cex=1.5)
+abline(h=1.3, v=c(-0.25,0.25), lty=2,lwd=1)
+dev.off()
+
+# volcano plot with label 
+pdf("ZX_PT_labelvolcano.pdf")
+plot(df8$fd, -log10(df8$P_value_adjust), col="#00000033", pch=19,
+      xlab=paste("log2 (fold change)"),
+      ylab="-log10 (P_value_adjust)",xlim=c(-4,4),
+      main="ZX & PT")
+
+up <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd > 0.25)
+down <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd < -0.25)
+points(up$fd, -log10(up$P_value_adjust), col=1, bg = brewer.pal(9, "YlOrRd")[6], pch=21, cex=1.5)
+points(down$fd, -log10(down$P_value_adjust), col = 1, bg = brewer.pal(11,"RdBu")[9], pch = 21,cex=1.5)
+text(up$fd, -log10(up$P_value_adjust),row.names(up),cex=0.5)
+text(down$fd, -log10(down$P_value_adjust),row.names(down),cex=0.5)
+abline(h=1.3, v=c(-0.25,0.25), lty=2,lwd=1)
+dev.off()
+```
+
+
+
+VOLCANO zx/ jkdz  (in other words: severe - healthy)
+```{r}
+library(RColorBrewer)
+PT_type <- which(label=="PT")
+ZX_type <- which(label=="ZX")
+jkdz_type <- which(label=="jkdz")
+jbdz_type <- which(label=="jbdz")
+
+df8 <- df2
+df8[is.na(df8)]<-0
+df8$fd <- apply(df8,1, function(x) log2((mean(x[ZX_type],na.rm = T)/mean(x[jkdz_type],na.rm = T))))
+x<-c(0.0,0.0)
+df9 <- df2
+df9[is.na(df9)]<-0
+
+for(i in 1:nrow(df9)){
+    x[i] <- t.test(df9[i,ZX_type],df9[i,jkdz_type], paired = F, var.equal = F)$p.value
+}
+df8$P_value<-x
+df8$P_value_adjust<-p.adjust(df8$P_value, method="BH")
+
+pdf("ZX_jkdz_labelpoint.pdf")
+df.point <- data.frame(mean=apply(df2[,c(ZX_type,jkdz_type)],1,mean),fc=df8$fd)
+up <- subset(df.point, df.point$mean >1.5 & df.point$fc > 0.25)
+down <- subset(df.point, df.point$mean <1 & df.point$fc < -0.25)
+write.csv(rbind(up,down),file = "ZX_jkdz_point.csv")
+plot(df.point$mean,df.point$fc)
+abline(h=c(-0.25,0.25),lty=2,lwd=1)
+  text(up$mean, up$fc,row.names(up),cex=0.5)
+  text(down$mean, down$fc,row.names(down),cex=0.5)
+dev.off()
+pdf("ZX_jkdz_point.pdf")
+df.point <- data.frame(mean=apply(df2[,c(ZX_type,jkdz_type)],1,mean),fc=df8$fd)
+plot(df.point$mean,df.point$fc)
+abline(h=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+
+
+
+pdf("ZX_jkdz_volcano.pdf")
+plot(df8$fd, -log10(df8$P_value_adjust), col="#00000033", pch=19,
+      xlab=paste("log2 (fold change)"),
+      ylab="-log10 (P_value)",xlim=c(-4,4),
+      main="ZX / jkdz")
+
+up <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd > 0.25)
+down <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd < -0.25)
+write.csv(up,file = "ZX_jkdz_up_volcano.csv")
+write.csv(down,file = "ZX_jkdz_dw_volcano.csv")
+points(up$fd, -log10(up$P_value_adjust), col=1, bg = brewer.pal(9, "YlOrRd")[6], pch=21, cex=1.5)
+points(down$fd, -log10(down$P_value_adjust), col = 1, bg = brewer.pal(11,"RdBu")[9], pch = 21,cex=1.5)
+abline(h=1.3,v=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+
+
+pdf("ZX_jkdz_labelvolcano.pdf")
+plot(df8$fd, -log10(df8$P_value_adjust), col="#00000033", pch=19,
+      xlab=paste("log2 (fold change)"),
+      ylab="-log10 (P_value)",xlim=c(-4,4),
+      main="ZX / jkdz")
+
+up <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd > 0.25)
+down <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd < -0.25)
+points(up$fd, -log10(up$P_value_adjust), col=1, bg = brewer.pal(9, "YlOrRd")[6], pch=21, cex=1.5)
+points(down$fd, -log10(down$P_value_adjust), col = 1, bg = brewer.pal(11,"RdBu")[9], pch = 21,cex=1.5)
+text(up$fd, -log10(up$P_value_adjust),row.names(up),cex=0.5)
+text(down$fd, -log10(down$P_value_adjust),row.names(down),cex=0.5)
+abline(h=1.3,v=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+```
+
+
+VOLCANO zx/ jbdz  (in other words: severe - nonCOVID19)
+```{r}
+library(RColorBrewer)
+PT_type <- which(label=="PT")
+ZX_type <- which(label=="ZX")
+jkdz_type <- which(label=="jkdz")
+jbdz_type <- which(label=="jbdz")
+
+df8 <- df2
+df8[is.na(df8)]<-0
+df8$fd <- apply(df8,1, function(x) log2((mean(x[ZX_type],na.rm = T)/mean(x[jbdz_type],na.rm = T))))
+x<-c(0.0,0.0)
+df9 <- df2
+df9[is.na(df9)]<-0
+
+for(i in 1:nrow(df9)){
+    x[i] <- t.test(df9[i,ZX_type],df9[i,jbdz_type], paired = F, var.equal = F)$p.value
+}
+df8$P_value<-x
+df8$P_value_adjust<-p.adjust(df8$P_value, method="BH")
+
+pdf("ZX_jbdz_point.pdf")
+df.point <- data.frame(mean=apply(df2[,c(ZX_type,jbdz_type)],1,mean),fc=df8$fd)
+up <- subset(df.point, df.point$mean >1.5 & df.point$fc > 0.25)
+down <- subset(df.point, df.point$mean <1 & df.point$fc < -0.25)
+write.csv(rbind(up,down),file = "ZX_jbdz_point.csv")
+plot(df.point$mean,df.point$fc)
+abline(h=c(-0.25,0.25),lty=2,lwd=1)
+  text(up$mean, up$fc,row.names(up),cex=0.5)
+  text(down$mean, down$fc,row.names(down),cex=0.5)
+dev.off()
+pdf("ZX_jbdz_labelpoint.pdf")
+df.point <- data.frame(mean=apply(df2[,c(ZX_type,jbdz_type)],1,mean),fc=df8$fd)
+plot(df.point$mean,df.point$fc)
+abline(h=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+
+
+pdf("ZX_jbdz_volcano.pdf")
+plot(df8$fd, -log10(df8$P_value_adjust), col="#00000033", pch=19,
+      xlab=paste("log2 (fold change)"),
+      ylab="-log10 (P_value)",xlim=c(-4,4),
+      main="ZX / jbdz")
+
+up <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd > 0.25)
+down <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd < -0.25)
+write.csv(up,file = "ZX_jbdz_up_volcano.csv")
+write.csv(down,file = "ZX_jbdz_dw_volcano.csv")
+points(up$fd, -log10(up$P_value_adjust), col=1, bg = brewer.pal(9, "YlOrRd")[6], pch=21, cex=1.5)
+points(down$fd, -log10(down$P_value_adjust), col = 1, bg = brewer.pal(11,"RdBu")[9], pch = 21,cex=1.5)
+abline(h=1.3,v=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+
+
+pdf("ZX_jbdz_labelvolcano.pdf")
+plot(df8$fd, -log10(df8$P_value_adjust), col="#00000033", pch=19,
+      xlab=paste("log2 (fold change)"),
+      ylab="-log10 (P_value)",xlim=c(-4,4),
+      main="ZX / jbdz")
+
+up <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd > 0.25)
+down <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd < -0.25)
+write.csv(up,file = "ZX_jbdz_up_volcano.csv")
+write.csv(down,file = "ZX_jbdz_dw_volcano.csv")
+points(up$fd, -log10(up$P_value_adjust), col=1, bg = brewer.pal(9, "YlOrRd")[6], pch=21, cex=1.5)
+points(down$fd, -log10(down$P_value_adjust), col = 1, bg = brewer.pal(11,"RdBu")[9], pch = 21,cex=1.5)
+text(up$fd, -log10(up$P_value_adjust),row.names(up),cex=0.5)
+text(down$fd, -log10(down$P_value_adjust),row.names(down),cex=0.5)
+abline(h=1.3,v=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+```
+
+
+VOLCANO jbdz/ jkdz  (in other words: nonCOVID19 - healthy)
+```{r}
+library(RColorBrewer)
+jbdz_type <- which(label=="jbdz")
+jkbz_type <- which(label=="jkdz")
+
+df8 <- df2
+df8[is.na(df8)]<-0
+df8$fd <- apply(df8,1, function(x) log2((mean(x[jbdz_type],na.rm = T)/mean(x[jkbz_type],na.rm = T))))
+x<-c(0.0,0.0)
+df9 <- df2
+df9[is.na(df9)]<-0
+
+for(i in 1:nrow(df9)){
+    x[i] <- t.test(df9[i,jbdz_type],df9[i,jkbz_type], paired = F, var.equal = F)$p.value
+}
+df8$P_value<-x
+df8$P_value_adjust<-p.adjust(df8$P_value, method="BH")
+
+pdf("jbdz_jkdz_labelpoint.pdf")
+df.point <- data.frame(mean=apply(df2[,c(jbdz_type,jkbz_type)],1,mean),fc=df8$fd)
+up <- subset(df.point, df.point$mean >1.5 & df.point$fc > 0.25)
+down <- subset(df.point, df.point$mean <1 & df.point$fc < -0.25)
+write.csv(rbind(up,down),file = "jbdz_jkdz_point.csv")
+plot(df.point$mean,df.point$fc)
+abline(h=c(-0.25,0.25),lty=2,lwd=1)
+  text(up$mean, up$fc,row.names(up),cex=0.5)
+  text(down$mean, down$fc,row.names(down),cex=0.5)
+dev.off()
+pdf("jbdz_jkdz_point.pdf")
+df.point <- data.frame(mean=apply(df2[,c(jbdz_type,jkbz_type)],1,mean),fc=df8$fd)
+plot(df.point$mean,df.point$fc)
+abline(h=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+
+
+
+pdf("jbdz_jkdz_volcano.pdf")
+plot(df8$fd, -log10(df8$P_value_adjust), col="#00000033", pch=19,
+      xlab=paste("log2 (fold change)"),
+      ylab="-log10 (P_value_adjust)",xlim=c(-4,4),
+      main="jbdz / jkdz")
+
+up <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd > 0.25)
+down <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd < -0.25)
+write.csv(up,file = "jbdz_jkdz_up_volcano.csv")
+write.csv(down,file = "jbdz_jkdz_dw_volcano.csv")
+points(up$fd, -log10(up$P_value_adjust), col=1, bg = brewer.pal(9, "YlOrRd")[6], pch=21, cex=1.5)
+points(down$fd, -log10(down$P_value_adjust), col = 1, bg = brewer.pal(11,"RdBu")[9], pch = 21,cex=1.5)
+abline(h=1.3,v=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+
+pdf("jbdz_jkdz_labelvolcano.pdf")
+plot(df8$fd, -log10(df8$P_value_adjust), col="#00000033", pch=19,
+      xlab=paste("log2 (fold change)"),
+      ylab="-log10 (P_value_adjust)",xlim=c(-4,4),
+      main="jbdz / jkdz")
+
+up <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd > 0.25)
+down <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd < -0.25)
+points(up$fd, -log10(up$P_value_adjust), col=1, bg = brewer.pal(9, "YlOrRd")[6], pch=21, cex=1.5)
+points(down$fd, -log10(down$P_value_adjust), col = 1, bg = brewer.pal(11,"RdBu")[9], pch = 21,cex=1.5)
+text(up$fd, -log10(up$P_value_adjust),row.names(up),cex=0.5)
+text(down$fd, -log10(down$P_value_adjust),row.names(down),cex=0.5)
+abline(h=1.3,v=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+
+```
+
+
+VOLCANO PT/ jkdz  (in other words: nonsevere - healthy)
+```{r}
+library(RColorBrewer)
+PT_type <- which(label=="PT")
+jkbz_type <- which(label=="jkdz")
+
+df8 <- df2
+df8[is.na(df8)]<-0
+df8$fd <- apply(df8,1, function(x) log2((mean(x[PT_type],na.rm = T)/mean(x[jkbz_type],na.rm = T))))
+x<-c(0.0,0.0)
+df9 <- df2
+df9[is.na(df9)]<-0
+
+for(i in 1:nrow(df9)){
+    x[i] <- t.test(df9[i,PT_type],df9[i,jkbz_type], paired = F, var.equal = F)$p.value
+}
+df8$P_value<-x
+df8$P_value_adjust<-p.adjust(df8$P_value, method="BH")
+
+pdf("PT_jkdz_labelpoint.pdf")
+df.point <- data.frame(mean=apply(df2[,c(PT_type,jkbz_type)],1,mean),fc=df8$fd)
+up <- subset(df.point, df.point$mean >1.5 & df.point$fc > 0.25)
+down <- subset(df.point, df.point$mean <1 & df.point$fc < -0.25)
+write.csv(rbind(up,down),file = "PT_jkdz_point.csv")
+plot(df.point$mean,df.point$fc)
+abline(h=c(-0.25,0.25),lty=2,lwd=1)
+  text(up$mean, up$fc,row.names(up),cex=0.5)
+  text(down$mean, down$fc,row.names(down),cex=0.5)
+dev.off()
+pdf("PT_jkdz_point.pdf")
+df.point <- data.frame(mean=apply(df2[,c(PT_type,jkbz_type)],1,mean),fc=df8$fd)
+plot(df.point$mean,df.point$fc)
+abline(h=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+
+
+
+
+pdf("PT_jkdz_volcano.pdf")
+plot(df8$fd, -log10(df8$P_value_adjust), col="#00000033", pch=19,
+      xlab=paste("log2 (fold change)"),
+      ylab="-log10 (P_value)",xlim=c(-4,4),
+      main="PT / jkdz")
+
+up <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd > 0.25)
+down <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd < -0.25)
+write.csv(up,file = "PT_jkdz_up_volcano.csv")
+write.csv(down,file = "PT_jkdz_dw_volcano.csv")
+points(up$fd, -log10(up$P_value_adjust), col=1, bg = brewer.pal(9, "YlOrRd")[6], pch=21, cex=1.5)
+points(down$fd, -log10(down$P_value_adjust), col = 1, bg = brewer.pal(11,"RdBu")[9], pch = 21,cex=1.5)
+abline(h=1.3,v=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+
+
+pdf("PT_jkdz_labelvolcano.pdf")
+plot(df8$fd, -log10(df8$P_value_adjust), col="#00000033", pch=19,
+      xlab=paste("log2 (fold change)"),
+      ylab="-log10 (P_value)",xlim=c(-4,4),
+      main="PT / jkdz")
+
+up <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd > 0.25)
+down <- subset(df8, df8$P_value_adjust < 0.05 & df8$fd < -0.25)
+points(up$fd, -log10(up$P_value_adjust), col=1, bg = brewer.pal(9, "YlOrRd")[6], pch=21, cex=1.5)
+points(down$fd, -log10(down$P_value_adjust), col = 1, bg = brewer.pal(11,"RdBu")[9], pch = 21,cex=1.5)
+text(up$fd, -log10(up$P_value_adjust),row.names(up),cex=0.5)
+text(down$fd, -log10(down$P_value_adjust),row.names(down),cex=0.5)
+abline(h=1.3,v=c(-0.25,0.25),lty=2,lwd=1)
+dev.off()
+
+```
+
+
+boxplot
+```{r}
+prot2 <- c("P02743","P02776","P02775","P02765","P35542","O95445","P04004")
+label <- info$Type[match(names(df2),info$TMT)]
+df4 <- df2[prot2,label!="NA"]
+label4 <- info$Type[match(names(df4),info$TMT)]
+df.nor <- t(apply(df4, 1, scale)) 
+lav <- unique(label4)
+for (i in 1:nrow(df.nor)) {
+  nm <- row.names(df.nor)[i]
+  pv <- c()
+  data1 <- data.frame(value=as.numeric(df.nor[i,]),type=label4)
+  a1 <- 0
+  b1 <- 0
+    for (a in lav) {
+    for (b in lav) {
+        if(a>=b){
+          next
+        }else{
+        a_type <- which(label4 %in% a)
+        b_type <- which(label4 %in% b)
+        c <- t.test(df.nor[i,a_type],df.nor[i,b_type], paired = F, var.equal = F)$p.value
+        pv <- paste0(pv,"\n",a,"_",b,":",format(c,digits = 3, scientific = FALSE))
+        }
+      b1=b1+1
+    }
+      a1=a1+1
+  }
+  
+  plot.boxplot <- function(data,x,y,type,filename,title="boxplot"){
+  a <- ggplot(data=data, aes(x =x, y =y ,color=type,group=type)) +
+    geom_jitter(alpha = 0.3,size=3) +
+    geom_boxplot(alpha = .5,size=1)+
+    labs(x="sample",y="value",fill= "type")+
+    ggtitle(title)+
+    theme_bw() + 
+    theme(panel.border = element_blank())+
+    theme(axis.line = element_line(size=1, colour = "black")) +
+    theme(panel.grid =element_blank())+  
+    theme(axis.text = element_text(size = 15,colour = "black"),text = element_text(size = 15,colour = "black"))+
+    theme(axis.text.x = element_text( hjust = 1,angle = 45))+
+    scale_x_discrete(limit=c("jkdz","jbdz","PT","ZX") )+
+    scale_color_manual(limits=c("jkdz","jbdz","PT","ZX"), values=c("#85B22E","#5F80B4","#E29827","#922927"))
+  ggsave(paste0(filename, ".pdf"),plot=a,width=8,height=8)
+}
+  plot.boxplot( data1,data1$type,data1$value,data1$type,paste0("prot7_boxplot/",i, "_boxplot"),title=paste0(nm, pv))
+}
+
+
+
+which(grepl("choline",row.names(df2) ))
+
+```
+
+```
+
+

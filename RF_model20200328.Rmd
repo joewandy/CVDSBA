@@ -1,0 +1,269 @@
+---
+title: "CVDSBA"
+author: "Weigang Ge"
+date: "2020/3/28"
+output: html_document
+---
+
+proteomics and metabonomics matrix (training set)
+```{r}
+rm(list = ls())
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+library(magrittr)
+source("D:/datamining_library_ge20200306.R")
+df <- read_xlsx("../COVID19_123456.xlsx",sheet = 2)
+df1 <- df[,grepl("Ratio:",names(df))] %>% as.data.frame()
+row.names(df1) <- df$Accession
+nm1 <- ge.split(names(df1),"\\)",1)
+nm2 <- ge.split(nm1,"\\(",2)
+names(df1) <- gsub(", ","_",nm2)
+
+ge.na.ratio(df1)
+ge.plot.density(df1)
+max(df1,na.rm = T)
+min(df1,na.rm = T)
+
+df2 <- df1[apply(df1,1, function(x){sum(!is.na(x))})>0,]
+ge.na.ratio(df2)
+ge.plot.density(df2)
+max(df2,na.rm = T)
+min(df2,na.rm = T)
+
+dele <- which(names(df2) %in% c("F2_128N","F1_129C","F2_133N","F5_131C","F4_133N"))
+df2 <- df2[,-dele]
+
+info <- read_xlsx("../sampleinfo2.xlsx")
+info$TMT <- gsub("^b","F",info$TMT)
+df2 <- df2[,-na.omit(match(info$TMT[which(info$Type=="NA")],names(df2)))]
+
+info2 <- read_xlsx("sTable1_20200329-2100.xlsx",sheet = 2)
+names(df2) <- info2$`Metabonomics ID`[match(names(df2),info2$`MS ID`)]
+df2 <- df2[,!is.na(names(df2))]
+df2 <- df2[,!grepl("\\/",names(df2))]
+
+df.meta <- read_xls("../metabonomics_ttest/Taizhou20200328.xls",col_names = T)
+df1.meta <- df.meta[-c(1:2),-1] %>% as.data.frame()
+row.names(df1.meta) <- df.meta$...1[-c(1:2)]
+names(df1.meta) <- df.meta[1,-1]
+df2.meta <- apply(df1.meta,1, as.numeric) %>% t() %>% as.data.frame() %>% log2()
+names(df2.meta) <- names(df1.meta)
+label2 <- gsub("\\d+","",names(df2.meta))
+zx_type <- which(label2=="ZX")
+pt_type <- which(label2=="PT")
+jbdz_type <- which(label2=="jbdz")
+jkbz_type <- which(label2=="jkdz")
+
+df3.meta <- df2.meta[!apply(df2.meta, 1, function(x){sum(is.na(x[zx_type]))/length(zx_type) > 0.8 | sum(is.na(x[pt_type]))/length(pt_type) > 0.8| sum(is.na(x[jbdz_type]))/length(jbdz_type) > 0.8 | sum(is.na(x[jkbz_type]))/length(jkbz_type) > 0.8}),]
+
+#df3.meta <- df2.meta
+for (i in 1:nrow(df3.meta)) {
+  df3.meta[i,][is.na(df3.meta[i,])] <- min(df3.meta[i,],na.rm = T)
+}
+
+detect <- read_xlsx("../metabonomics_ttest/Detected Drugs information from Calibra.xlsx",col_names = F)
+df3.meta <- df3.meta[-which(row.names(df3.meta) %in% detect$...1),]
+# write.csv(df3.meta,"meta_matrix_log2delectNA08anddrug36_NAmin20200329.csv")
+
+ov <- intersect(names(df2),names(df3.meta))
+proteo <- df2[,ov]
+meta <- df3.meta[,ov]
+
+df3 <- rbind(proteo,meta)
+label <- gsub("\\d+","",names(df3))
+
+
+
+# tmp <- df3
+# names(tmp) <- info2$`Patient ID`[match(names(tmp),info2$`Metabonomics ID`)]
+# write.xlsx(tmp,"mix_proteomic_metabonomics_RF_trainingset.xlsx")
+```
+
+
+
+
+proteomics and metabonomics matrix (test set)
+```{r}
+va.prot <- ge.readtable("../proteome_delect5/batch78/proteomic_matrixbatch78_delectNA8_ratio20200329.txt")
+names(va.prot) <- info2$`Metabonomics ID`[match(names(va.prot),info2$`MS ID`)]
+va.prot[is.na(va.prot)] <- 0
+va.ov <- intersect(names(va.prot),names(df3.meta))
+
+da.va <- rbind(va.prot[,va.ov],df3.meta[,va.ov])
+label.va <- gsub("\\d+","",names(da.va))
+
+# tmp <- da.va
+# names(tmp) <- info2$`Patient ID`[match(names(tmp),info2$`Metabonomics ID`)]
+# write.xlsx(tmp,"mix_proteomic_metabonomics_RF_validationset.xlsx")
+```
+
+
+ZX/PT (severe/nonsevere) RF importance feature  select 
+```{r}
+changename <- data.frame(real=row.names(df3),change=paste0("cg",1:nrow(df3)))
+df4 <- df3
+row.names(df4) <- changename$change
+pt <- df4[,which(label=="PT")]
+zx <- df4[,which(label=="ZX")]
+
+
+prot.up <- read.csv("../proteome_delect5/ZX_PT_up_volcano.csv")$X
+prot.dw <- read.csv("../proteome_delect5/ZX_PT_dw_volcano.csv")$X
+meta.up <- read.csv("../metabonomics_ttest/ZX_PT_up_volcano.csv")$X
+meta.dw <- read.csv("../metabonomics_ttest/ZX_PT_dw_volcano.csv")$X
+
+prot <- c(as.character(prot.up),as.character(prot.dw),as.character(meta.up),as.character(meta.dw)) 
+prot <- prot[!grepl("ose",prot)]
+protcg <- changename$change[which(changename$real %in% prot )] %>% as.character()
+
+p3 <- data.frame(pt,zx)
+p3[is.na(p3)] <- 0
+p4 <- data.frame(t(p3))
+names(p4) <- row.names(df4)
+tmp <- p4[,protcg]
+tmp$label <- rep(c("PT","ZX"),c(length(pt),length(zx)))
+
+set.seed(202122.3)
+rf_train<-randomForest(as.factor(label)~.,data=tmp,importance=T,ntree=1000,nodesize=5)
+result <- data.frame(importance(rf_train,type=1))
+result1 <- row.names(result)[result$MeanDecreaseAccuracy>3]
+
+ge.plot.pca(t(tmp[,result1]),rep(c("PT","ZX"),c(length(pt),length(zx))),"PT_ZX_test")
+# ge.plot.umap(t(tmp[,result1]),rep(c("PT","ZX"),c(length(pt),length(zx))),"PT_ZX_test")
+# ge.plot.tsne(t(tmp[,result1]),rep(c("PT","ZX"),c(length(pt),length(zx))),"PT_ZX_test")
+
+
+# prot.up <- read.csv("../proteome_delect5/ZX_PT_up_volcano.csv")
+# prot.dw <- read.csv("../proteome_delect5/ZX_PT_dw_volcano.csv")
+# meta.up <- read.csv("../metabonomics_ttest/ZX_PT_up_volcano.csv")
+# meta.dw <- read.csv("../metabonomics_ttest/ZX_PT_dw_volcano.csv")
+# prot.dif <- rbind(prot.up,prot.dw)
+# prot.dif1 <- prot.dif[which(prot.dif$X %in% changename$real[match(result1,changename$change)]),c(1,87:89)]
+# 
+# meta.dif <- rbind(meta.up,meta.dw)
+# meta.dif1 <- meta.dif[which(meta.dif$X %in% changename$real[match(result1,changename$change)]),c(1,98:100)]
+# 
+# resu.dif <- rbind(prot.dif1,meta.dif1)
+# write.csv(resu.dif,"covid_29_fcpv.csv")
+
+
+data.select <- data.frame(change=result1,real=changename$real[match(result1,changename$change)])
+write.csv(data.select,"PT_ZX_select.csv")
+
+
+pdf("RF_important_PT_ZX_select.pdf")
+varImpPlot(rf_train,n.var=min(length(result1), nrow(rf_train$importance)))
+dev.off()
+
+```
+
+
+
+feature performance was evaluated by training set
+```{r}
+
+tmp <- p4[,result1]
+tmp$label <- rep(c("PT","ZX"),c(length(pt),length(zx)))
+predictions1 <- matrix(0,nrow=dim(tmp)[1],ncol=2)
+rownames(predictions1) <- rownames(tmp)
+for(i in 1:100){
+	folds <- createFolds(tmp$label,10)
+	for(fold in folds){
+	   valids <- tmp[fold,]
+	   trains <- tmp[setdiff(1:dim(tmp)[1],fold),]
+	   trains$label <- as.factor(trains$label)
+	   set.seed(2020.3)
+	   tmpRF <- randomForest(label ~ . ,data=trains,importance=T,ntree=1000,nodesize=5)
+	   predicted <- predict(tmpRF,valids,type='prob')
+	   predictions1[rownames(predicted),] <- predictions1[rownames(predicted),]+predicted
+	}
+}
+colnames(predictions1) <- colnames(predicted)
+
+predicts <- t(apply(predictions1,1,function(v){v/sum(v)}))
+colnames(predicts) <- colnames(predicted)
+predicts <- data.frame(predicts,check.names=F)
+predicts$predicted <- apply(predicts,1,function(v){names(v)[max(v)==v]})
+predicts$observed <- tmp$label
+ROC <- roc( predicts$observed, as.numeric(predicts$ZX))
+
+
+pdf("RFprot29_PT_ZX_ROC.pdf")
+plot.roc(ROC,print.auc=T,col = "blue3",ylim=c(0,1), print.thres="best",	
+  main="RF delect29_PT_ZX ROC",legacy.axes = TRUE,print.auc.cex=1.2)
+dev.off()
+
+
+```
+
+
+
+build model , test set prediction
+```{r}
+#build model 
+set.seed(203420.03)
+tmpRF <- randomForest(factor(label) ~ . ,data=tmp,importance=T,ntree=1000,nodesize=5)
+
+#test set prediction
+df.va2 <- da.va[match(as.character(data.select$real), row.names(da.va)), ]
+row.names(df.va2) <-as.character( data.select$change)
+df.va3 <- t(df.va2) %>% as.data.frame()
+pt <- which(label.va=="PT")
+zx <- which(label.va=="ZX")
+df.va4 <- df.va3[c(pt,zx),]
+predicted <- predict(tmpRF,df.va4,type='prob')
+
+#predict result
+predicts <- t(apply(predicted,1,function(v){v/sum(v)}))
+colnames(predicts) <- colnames(predicted)
+predicts <- data.frame(predicts,check.names=F)
+predicts$predicted <- apply(predicts,1,function(v){names(v)[max(v)==v]})
+predicts$observed <- gsub("\\d+","",row.names(predicts))
+ROC <- roc(predicts$observed, as.numeric(predicts$ZX))
+
+
+
+df6 <- da.va[,row.names(predicts)]
+df7 <- t(apply(df6,1,scale))
+mean <- apply(df7,2,mean,na.rm=T)
+data <- data.frame(mean,predicts=predicts$ZX,sample2=row.names(predicts),type2=predicts$observed )
+
+
+ge.plot.point <- function(data,sample,value,type,group,title="",xlab="sample",ylab="value"){
+  a <- ggplot(data,aes(x=sample,y=value,group=group,color=group))+ 
+    geom_point()+geom_vline(xintercept = 0.5 ,linetype="dotted")+
+    ggtitle(paste0(title,"_pointplot"))+
+    xlab(xlab)+
+    ylab(ylab)+
+    theme(legend.text = element_text(size = 15,color = "black"),legend.position = 'top',
+          legend.title = element_text(size=15,color="black") ,
+          panel.grid.major =element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_blank(),
+          axis.line = element_line(colour = "black"))+
+    theme(panel.grid =element_blank())+
+    theme(axis.text = element_text(size = 10,color = "black"))+
+    theme(axis.text.x = element_text( hjust = 1,angle = 45))+
+    theme(plot.subtitle=element_text(size=30, hjust=0, color="black"))+
+    theme(axis.title.x=element_text(size=17, hjust=0.5, color="black"))+
+    theme(axis.title.y=element_text(size=17, hjust=0.5, color="black"))+  geom_text(aes(label=type,vjust = -0.8, hjust = 0.5),show.legend = FALSE)
+  ggsave(paste0(title,"_pointplot.pdf"),plot=a,width=4,height=8)
+}
+
+
+ge.plot.point(data,data$predicts,data$mean,data$sample2,data$type2, "RF predict2","predict value","Average")
+
+# 
+# da.tmp <- da.va
+# da.tmp[is.na(da.tmp)] <- 0
+# ge.plot.tsne(da.tmp, gsub("\\d+","",names(da.tmp)) ,"PT_ZX_allprot")
+# 
+# 
+# da.tmp <- da.va[as.character( changename$real[match(result1,changename$change)]),which(label.va=="PT" | label.va=="ZX")]
+# da.tmp[is.na(da.tmp)] <- 0
+# ge.plot.tsne(da.tmp, gsub("\\d+","",names(da.tmp)) ,"PT_ZX_va_seleprot")
+```
+
+
