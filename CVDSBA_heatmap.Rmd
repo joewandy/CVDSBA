@@ -1,0 +1,323 @@
+
+
+
+```{r heatmap_pathway_proteomics}
+
+rm(list = ls())
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+library(magrittr)
+source("datamining_library_ge20200306.R")
+library(RColorBrewer)
+library(pheatmap)
+
+
+matrix<-read.table("proteomic_matrix_delect5andNA15_ratio20200329.txt",header = T,sep = "\t",row.names = 1)
+
+protein<-read_excel("Fig3_heatmap_prots.xlsx",sheet=1)
+
+
+Fig3prot<-c(as.matrix(protein$UniprotID))
+
+
+info<-read_excel("sTable1_20200329-1900.xlsx",sheet = 2)
+
+info2<-info[,c(3,4,14,15)]
+
+info2.1<-info[,c(3,5,14,15)]
+
+
+
+names(info2)<-c("type","patient","sex","age")
+
+names(info2.1)<-c("type","patient","sex","age")
+
+
+matrix2<-data.frame(names(matrix),t(matrix))
+
+
+
+
+names(matrix2)<-c('patient',c(as.matrix(names(matrix2[,-c(1)]))))
+
+
+
+matrix3<-merge(info2,matrix2,by.x = "patient")
+
+matrix4<-merge(info2.1,matrix2,by.x = "patient")
+
+
+matrix5<-rbind(matrix4,matrix3)
+
+
+matrix5$type<-gsub("\\d+","",perl = T,matrix5$type)
+
+
+matrix5$sex<-gsub("1","M",perl = T,matrix5$sex)
+
+matrix5$sex<-gsub("0","F",perl = T,matrix5$sex)
+
+# matrix5.1<-matrix5[-c(which(matrix5$type==c("jbdz"))),]
+
+
+
+
+write.csv(matrix5,"heatmapfig2.csv",row.names = F)
+
+
+
+matrix5.1<-matrix5[]
+
+
+
+label<-matrix5.1[,c(1:4)]
+
+matrix6<-matrix5.1[,-c(1,3:4)]
+
+row.names(matrix6)<-c(as.matrix(label[,1]))
+
+
+matrix7<-data.frame(matrix6[,c(1,which(names(matrix6)%in%Fig3prot))])
+
+
+
+matrix7$type<-factor(matrix7$type,levels = c("jkdz","jbdz","PT","ZX"))
+
+
+
+matrix7<-matrix7[order(matrix7[,1]),]
+
+
+
+
+
+
+
+annotation_col<- data.frame(type = factor(label$type,levels = c("jkdz","jbdz","PT","ZX")),
+                            
+                            sex=label$sex,
+                            age=label$age,
+                            
+              
+                            row.names = label$patient)
+
+type_color <- c("#85B22E","#5F80B4","#E29827","#922927")
+names(type_color) <- c("jkdz","jbdz","PT","ZX")
+
+sex_color <- c("red","#016D06")
+
+names(sex_color) <- c("F","M")
+
+ann_colors <- list(type=type_color,sex=sex_color)
+# 
+# colors = c( brewer.pal(11,"RdYlGn")[9:2])
+
+colors = colorRampPalette(c("blue", "white","red" ))(1000)
+matrix8<-data.frame(t(matrix7[,-1]))
+
+
+
+matrix9<-data.frame(row.names(matrix8),matrix8)
+
+
+matrix9$row.names.matrix8.<-factor(matrix9$row.names.matrix8.,levels=c(as.matrix(Fig3prot)))
+
+matrix9<-matrix9[order(matrix9[,1]),]
+
+
+gene<-protein[,c(5,6)]
+
+
+for (i in 1:nrow(gene)) {
+  
+  
+  gene[i,3]<-paste0(gene[i,1],"_",gene[i,2])
+  
+}
+
+
+row.names(matrix9)<-c(as.matrix(gene[,3]))
+
+
+
+
+matrix10<-matrix9[,-1]
+
+
+
+
+
+
+
+matrix11<-data.frame(scale(matrix10,center = T))
+
+
+
+
+
+pheatmap(matrix11,scale="row",color = colors, annotation_col = annotation_col,
+         annotation_colors = ann_colors, fontsize_col = 10, cluster_rows = T, cluster_cols = F,show_rownames =T, show_colnames = F,fontsize = 10,cellwidth=10,cellheight=10,filename = paste0("Heatmap for cluster ","Fig3_UN_fourtype",".pdf"),main = paste0("Heatmap for clusterFig3",""))
+
+
+
+
+```
+
+```{heatmapp_metabo}
+
+
+rm(list = ls())
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+library(magrittr)
+source("datamining_library_ge20200306.R")
+library(RColorBrewer)
+library(pheatmap)
+
+
+all<-read.csv("metabo/meta_matrix_log2delectNA08anddrug36_NAmin20200329(1).csv")
+
+row.names(all)<-c(as.matrix(all[,1]))
+protein<-read_excel("metabo/heatmap_0415.xlsx")
+protein70<-c(as.matrix(protein[,1]))
+
+row.names(protein)<-c(as.matrix(protein[,1]))
+
+protein70order<- c(as.matrix(names(data.frame(t(protein)))))
+
+matrix<-data.frame(all[which(all$X%in%protein70),])
+
+info<-read_excel("sTable1_20200329-1900.xlsx",sheet = 2)
+
+
+info2<-info[,c(8,14,15)]
+
+
+
+
+names(info2)<-c("type","sex","age")
+
+
+matrix2<-data.frame(names(matrix[,-1]),t(matrix[,-1]))
+
+
+
+names(matrix2)<-c("type",c(as.matrix(matrix[,1])))
+
+
+
+
+
+
+matrix3<-merge(info2,matrix2,by.x = "type")
+
+matrix5<-data.frame(c(as.matrix(matrix3[,1])),matrix3)
+
+
+
+
+
+matrix5$type<-gsub("\\d+","",perl = T,matrix5$type)
+
+
+matrix5$sex<-gsub("1","M",perl = T,matrix5$sex)
+
+matrix5$sex<-gsub("0","F",perl = T,matrix5$sex)
+
+# matrix5.1<-matrix5[-c(which(matrix5$type==c("jbdz"))),]
+matrix5.1<-matrix5[,]
+
+label<-matrix5.1[,c(1:4)]
+
+
+
+
+matrix6<-matrix5.1[,-c(1,3:4)]
+
+row.names(matrix6)<-c(as.matrix(label[,1]))
+
+
+# matrix7<-data.frame(matrix6[,c(1,which(names(matrix6)%in%protein70))])
+
+
+
+matrix6$type<-factor(matrix6$type,levels = c("jkdz","jbdz","PT","ZX"))
+
+
+
+matrix6<-matrix6[order(matrix6[,1]),]
+
+
+
+
+
+
+
+annotation_col<- data.frame(type = factor(label$type,levels = c("jkdz","jbdz","PT","ZX")),
+                            
+                            sex=label$sex,
+                            age=label$age,
+                            
+              
+                            row.names = label$c.as.matrix.matrix3...1...)
+
+type_color <-  c("#85B22E","#5F80B4","#E29827","#922927")
+names(type_color) <- c("jkdz","jbdz","PT","ZX")
+
+sex_color <- c("red","#016D06")
+
+names(sex_color) <- c("F","M")
+
+ann_colors <- list(type=type_color,sex=sex_color)
+# 
+# colors = c( brewer.pal(11,"RdYlGn")[9:2])
+
+colors = colorRampPalette(c("blue", "white","red" ))(1000)
+
+matrix7<-data.frame(t(matrix6[,-1]))
+
+
+
+matrix8<-data.frame(row.names(matrix7),matrix7)
+
+
+
+matrix8$row.names.matrix7.<-factor(matrix8$row.names.matrix7.,levels=protein70order)
+
+
+
+matrix8<-matrix8[order(matrix8[,1]),]
+
+
+row.names(matrix8)<-protein70
+
+matrix9<-matrix8[,-1]
+
+
+# matrix9<-data.frame(row.names(matrix8),matrix8)
+
+
+# matrix9$row.names.matrix8.<-factor(matrix9$row.names.matrix8.,levels=c(as.matrix(Fig3prot)))
+
+# matrix9<-matrix9[order(matrix9[,1]),]
+# 
+# 
+# 
+# matrix10<-matrix9[,-1]
+# 
+write.csv(matrix9,"metabo/heatmap_meta.csv",row.names = T)
+matrix9[is.na(matrix9)]<-0
+
+
+pheatmap(matrix9,scale = "row",color = colors, annotation_col = annotation_col,
+         annotation_colors = ann_colors, fontsize_col = 10, cluster_rows = F, cluster_cols = F,show_rownames =T, show_colnames = F,fontsize = 10,cellwidth=10,cellheight=10,filename = paste0("metabo/Heatmap  ","Fig3_meta_uncluster_80_four_type_final20200415",".pdf"),main = paste0("Heatmap for clusterFig3_meta_PATHWAY_final",""))
+
+```
+
+
+
+

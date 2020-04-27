@@ -1,0 +1,180 @@
+
+```{r metabo}
+
+
+rm(list=ls())
+library(umap)
+source("common.R")
+source("datamining_library_ge20200306.R")
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+library(magrittr)
+library(Mfuzz)
+
+df<-read.csv("meta_matrix_log2delectNA08anddrug36_NAmin20200329(1).csv" )
+
+row.names(df)<-c(as.matrix(df$X))
+
+df2<-data.frame(t(df[-1]))
+
+df3<-data.frame(row.names(df2),df2)
+
+df3$row.names.df2.<-gsub("\\d+","",df3$row.names.df2.,perl = T)
+
+df1<-df3
+
+names(df1)<-c("label",c(as.matrix(names(df1[,-c(1)]))))
+
+set.seed(2020)
+
+color<-c("firebrick1","forestgreen","dodgerblue","navyblue")
+
+pdf("UMAP_2020_allprotein_meta_847feature.pdf")
+
+drawUMAP(df1[,],ptColors = color,rowNormalization =F, colNormalization = T)
+
+
+```
+
+
+
+
+```{r proteome}
+rm(list=ls())
+library(umap)
+source("common.R")
+source("datamining_library_ge20200306.R")
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+library(magrittr)
+library(Mfuzz)
+
+info <- read_xlsx("sampleinfo2.xlsx")
+
+info$TMT <- gsub("^b","F",info$TMT)
+
+ ################d
+df2<-read.table("proteomic_matrix_ratio20200328.txt",header = T,sep = "\t",row.names = 1)
+
+df3<-data.frame(names(df2),t(df2))
+
+names(df3)<-c("TMT",as.matrix(names(df3[,-1])))
+
+
+df4<-merge(info,df3,by.x = "TMT")
+
+
+df1<-df4
+names(df1)<-c('patient',"label",c(as.matrix(names(df1[,-c(1:2)]))))
+
+df2<-data.frame(df1[-c(which(df1$label==c("NA"))),])
+
+row.names(df2)<-c(as.matrix(df2$patient))
+
+set.seed(2020)
+
+color<-c("firebrick1","forestgreen","dodgerblue","navyblue")
+
+pdf("UMAP_2020_allprotein.pdf")
+
+drawUMAP(df2[,-1],ptColors = color,rowNormalization =F, colNormalization = T)
+
+```
+
+```{r proteome_severe_nonsevere_label}
+rm(list=ls())
+library(umap)
+source("common_change_label.R")
+source("datamining_library_ge20200306.R")
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+protein<-read.csv("proteomic_training_severe_nonsevere.csv",row.names = 1)
+color=c("#DA942C","#8D2926")
+set.seed(2020)
+pdf("proteomic_training_severe_nonsevereABCD.pdf")
+drawUMAP(protein,ptColors = color,rowNormalization =F, colNormalization = T)
+
+rm(list=ls())
+library(umap)
+source("common_change_label.R")
+source("datamining_library_ge20200306.R")
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+protein<-read.csv("proteomic_training_severe_nonsevere.csv",row.names = 1)
+protein<-protein[1:18,]
+color=c("#DA942C")
+set.seed(2020)
+pdf("proteomic_training_nonsevere.pdf")
+drawUMAP(protein,ptColors = color,rowNormalization =F, colNormalization = T)
+rm(list=ls())
+# library(umap)
+source("common_change_label.R")
+source("datamining_library_ge20200306.R")
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+protein<-read.csv("proteomic_training_severe_nonsevere.csv",row.names = 1)
+protein<-protein[19:31,]
+color=c("#8D2926","black")
+set.seed(2020)
+pdf("proteomic_training_severe.pdf")
+drawUMAP(protein,ptColors = color,rowNormalization =F, colNormalization = T)
+
+```
+
+```{r metabo_severe_nonsevere_label}
+rm(list=ls())
+library(umap)
+source("common_change_label.R")
+source("datamining_library_ge20200306.R")
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+protein<-read.csv("meta_training_severe_nonsevere.csv",row.names = 1)
+color=c("#DA942C","#8D2926")
+set.seed(2020)
+pdf("meta_training_severe_nonsevere_ABCD.pdf")
+drawUMAP(protein,ptColors = color,rowNormalization =F, colNormalization = T)
+rm(list=ls())
+library(umap)
+source("common_change_label.R")
+source("datamining_library_ge20200306.R")
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+protein<-read.csv("meta_training_severe_nonsevere.csv",row.names = 1)
+protein<-protein[1:18,]
+color=c("#DA942C")
+set.seed(2020)
+pdf("meta_training_nonsevere.pdf")
+drawUMAP(protein,ptColors = color,rowNormalization =F, colNormalization = T)
+rm(list=ls())
+# library(umap)
+source("common_change_label.R")
+source("datamining_library_ge20200306.R")
+library(readr)
+library(plyr)
+library(readxl)
+library(stringr)
+protein<-read.csv("meta_training_severe_nonsevere.csv",row.names = 1)
+protein<-protein[19:31,]
+color=c("#8D2926","black")
+set.seed(2020)
+pdf("meta_training_severe.pdf")
+drawUMAP(protein,ptColors = color,rowNormalization =F, colNormalization = T)
+
+```
+
+
+
