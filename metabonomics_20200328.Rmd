@@ -13,8 +13,8 @@ library(plyr)
 library(readxl)
 library(stringr)
 library(magrittr)
-source("D:/datamining_library_ge20200306.R")
-df <- read_xls("Taizhou20200328.xls",col_names = T)
+source("datamining_library_ge20200306.R")
+df <- read_xls("data/Taizhou20200328.xls",col_names = T)
 df1 <- df[-c(1:2),-1] %>% as.data.frame()
 row.names(df1) <- df$...1[-c(1:2)]
 names(df1) <- df[1,-1]
@@ -30,7 +30,7 @@ min(df2,na.rm = T)
 
 
 #delect 36 drugs 
-detect <- read_xlsx("Detected Drugs information from Calibra.xlsx",col_names = F)
+detect <- read_xlsx("data/Detected Drugs information from Calibra.xlsx",col_names = F)
 df2 <- df2[-which(row.names(df2) %in% detect$...1),]
 
 ```
