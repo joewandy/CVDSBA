@@ -15,6 +15,7 @@ library(stringr)
 library(magrittr)
 source("D:/datamining_library_ge20200306.R")
 df <- read_xlsx("../COVID19_123456.xlsx",sheet = 2)
+library(ggbiplot)
 df1 <- df[,grepl("Ratio:",names(df))] %>% as.data.frame()
 row.names(df1) <- df$Accession
 nm1 <- ge.split(names(df1),"\\)",1)
