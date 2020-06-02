@@ -13,9 +13,9 @@ library(plyr)
 library(readxl)
 library(stringr)
 library(magrittr)
-source("D:/datamining_library_ge20200306.R")
-df <- read_xlsx("../COVID19_123456.xlsx",sheet = 2)
 library(ggbiplot)
+source("datamining_library_ge20200306.R")
+df <- read_xlsx("data/COVID19_123456.xlsx",sheet = 2)
 df1 <- df[,grepl("Ratio:",names(df))] %>% as.data.frame()
 row.names(df1) <- df$Accession
 nm1 <- ge.split(names(df1),"\\)",1)
@@ -36,7 +36,7 @@ min(df2,na.rm = T)
 dele <- which(names(df2) %in% c("F2_128N","F1_129C","F2_133N","F5_131C","F4_133N"))
 df2 <- df2[,-dele]
 
-info <- read_xlsx("../sampleinfo2.xlsx")
+info <- read_xlsx("data/sampleinfo2.xlsx")
 info$TMT <- gsub("^b","F",info$TMT)
 
 # tmp <- df2[,-na.omit(match(info$TMT[which(info$Type=="NA")],names(df2)))]
@@ -469,7 +469,7 @@ for (i in 1:nrow(df.nor)) {
     scale_color_manual(limits=c("jkdz","jbdz","PT","ZX"), values=c("#85B22E","#5F80B4","#E29827","#922927"))
   ggsave(paste0(filename, ".pdf"),plot=a,width=8,height=8)
 }
-  plot.boxplot( data1,data1$type,data1$value,data1$type,paste0("prot7_boxplot/",i, "_boxplot"),title=paste0(nm, pv))
+  plot.boxplot( data1,data1$type,data1$value,data1$type,paste0(i, "_boxplot"),title=paste0(nm, pv))
 }
 
 
