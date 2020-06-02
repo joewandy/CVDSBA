@@ -39,8 +39,8 @@ df2 <- df2[,-dele]
 info <- read_xlsx("data/sampleinfo2.xlsx")
 info$TMT <- gsub("^b","F",info$TMT)
 
-# tmp <- df2[,-na.omit(match(info$TMT[which(info$Type=="NA")],names(df2)))]
-# ge.writetable(tmp,"proteomic_matrix_delect5andNA15_ratio20200329.txt")
+tmp <- df2[,-na.omit(match(info$TMT[which(info$Type=="NA")],names(df2)))]
+ge.writetable(tmp,"proteomic_matrix_delect5andNA15_ratio20200329.txt")
 
 # qqnorm(as.matrix(df2[, 46]))
 # qqline(as.matrix(df2[, 46]))
